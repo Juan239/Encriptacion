@@ -1,3 +1,4 @@
+import { log } from 'console';
 import crypto from 'crypto';
 import { config } from 'dotenv';
 
@@ -6,6 +7,7 @@ config();
 
 // Obtener la clave secreta desde el archivo .env
 const secretKey = process.env.SECRET_KEY;
+const secretIV = process.env.SECRET_IV;
 
 if (!secretKey) {
     throw new Error('Error obteniendo la clave secreta');
@@ -15,7 +17,45 @@ if (secretKey.length !== 64) {
     throw new Error('La clave secreta debe tener 64 caracteres (32 bytes en hexadecimal).');
 }
 
-// Función para encriptar, acepta un dato simple o un array
+
+
+// Función para encriptar un dato con IV fijo
+export const encriptarDatoConIVFijo = (req, res) => {
+    const dato = req.body.data;
+
+    if (!secretIV || Buffer.from(secretIV, 'hex').length !== 16) {
+        throw new Error('El IV debe tener exactamente 16 bytes (32 caracteres en hexadecimal).');
+    }
+
+    const iv = Buffer.from(secretIV, 'hex'); // Convertir IV desde hexadecimal
+    const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(secretKey, 'hex'), iv);
+
+    let encrypted = cipher.update(dato, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    return res.status(200).json({ data: encrypted });
+};
+
+// Función para desencriptar un dato con IV fijo
+export const desencriptarDatoConIVFijo = (req, res) => {
+    const datoEncriptado = req.body.data;
+
+    if (!secretIV || Buffer.from(secretIV, 'hex').length !== 16) {
+        throw new Error('El IV debe tener exactamente 16 bytes (32 caracteres en hexadecimal).');
+    }
+
+    const iv = Buffer.from(secretIV, 'hex'); // Convertir IV desde hexadecimal
+    const encryptedText = Buffer.from(datoEncriptado, 'hex');
+
+    const decipher = crypto.createDecipheriv("aes-256-cbc", Buffer.from(secretKey, 'hex'), iv);
+
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+    return res.status(200).json({ data: decrypted.toString() });
+};
+
+
 export const encriptar = (req, res) => {
     console.log("Encriptando...");
 
@@ -53,6 +93,8 @@ export const encriptar = (req, res) => {
 // Función para desencriptar, acepta un dato simple o un array
 export const desencriptar = (req, res) => {
     const data = req.body.data;
+    console.log(data);
+    
 
     if (!data) {
         return res.status(400).json({ error: 'No se proporcionaron datos para desencriptar' });
